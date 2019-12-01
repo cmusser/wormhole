@@ -76,6 +76,14 @@ become __de rigeur__.
 
 * The `async/.await`-aware version of Tokio (initially 0.2)
 * `futures` 0.3
-* The `tracing` library
-* Sodiumoxide, the libsodium wrapper
-* Structopt
+* `tracing`, for diagnostics
+* `sodiumoxide`, the libsodium wrapper
+* Structopt, for CLI argument processing
+
+## Acknowledgements
+
+`wormhole` is based on examples in the [Tokio](https://github.com/tokio-rs/tokio)
+repo. The overall structure, which uses `async/.await` is from the example in the
+0.2 branch. A technique for ensuring proper session cleanup was found in the 0.1
+example. Tips on implementing the connection readers came from `Nemo157` and
+`sfackler` on the Rust [users discussion site](https://users.rust-lang.org).
