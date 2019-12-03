@@ -12,7 +12,7 @@ use tokio::{
     io::{copy, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{tcp::WriteHalf, TcpStream},
 };
-use tracing::{error, info, info_span};
+use tracing::{error, info};
 
 fn reader_finish(closed_by: &str, result: Result<u64, std::io::Error>) {
     match result {
@@ -27,11 +27,6 @@ pub async fn run_session(
     mut client: TcpStream,
     mut server: TcpStream,
 ) -> Result<(), Box<tokio::io::Error>> {
-    let client_addr = client.peer_addr();
-    let server_addr = server.peer_addr();
-    let span = info_span!("session", ?client_addr, ?server_addr);
-    let _span = span.enter();
-
     let (mut client_reader, client_writer) = client.split();
     let (mut server_reader, server_writer) = server.split();
     let mut server_writer = ClonedWriter(Arc::new(Mutex::new(server_writer)));
@@ -52,6 +47,7 @@ pub async fn run_session(
         // Read the encryption header from the peer proxy and use it to set up
         // the reader that will decrypt packets from the client.
         client_reader.read_exact(&mut remote_header).await?;
+        info!("received header from client proxy");
         let mut decrypt_from_client =
             DecryptingReader::new(&remote_header, &key_data, &mut client_reader);
 
@@ -84,6 +80,7 @@ pub async fn run_session(
         // Read the encryption header from the peer proxy and use it to set up
         // the reader that will decrypt packets from the server.
         server_reader.read_exact(&mut remote_header).await?;
+        info!("received header from server proxy");
         let mut decrypt_from_server =
             DecryptingReader::new(&remote_header, &key_data, &mut server_reader);
 

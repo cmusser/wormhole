@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{error, info, info_span};
+use tracing_futures::Instrument;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use wormhole::session::run_session;
 
@@ -55,13 +56,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         match incoming.accept().await {
             Ok((client, _)) => {
-                let server = TcpStream::connect(opt.server.clone()).await?;
-                let session = run_session(key.clone(), opt.server_proxy, client, server).map(|r| {
-                    if let Err(e) = r {
-                        error!(?e, "session failure");
+                match TcpStream::connect(opt.server.clone()).await {
+                    Ok(server) => {
+                        let client_addr = client.peer_addr();
+                        let server_addr = server.peer_addr();
+                        let session = run_session(key.clone(), opt.server_proxy, client, server)
+                            .instrument(info_span!("session", ?client_addr, ?server_addr))
+                            .map(|r| {
+                                if let Err(e) = r {
+                                    error!(?e, "session failure");
+                                }
+                            });
+                        tokio::spawn(session);
                     }
-                });
-                tokio::spawn(session);
+                    Err(e) => error!(?e, "connect failure"),
+                };
             }
             Err(e) => error!(?e, "accept"),
         }
