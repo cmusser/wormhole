@@ -2,7 +2,7 @@ use core::pin::Pin;
 use futures::task::{Context, Poll};
 use sodiumoxide::crypto::secretstream::{Header, Key, Pull, Push, Stream, Tag, ABYTES};
 use tokio::{io::AsyncRead, net::tcp::ReadHalf};
-use tracing::trace;
+use tracing::{trace, warn};
 
 pub struct EncryptingReader<'a> {
     pub header: Header,
@@ -82,20 +82,29 @@ impl<'a> AsyncRead for DecryptingReader<'a> {
         match result {
             Poll::Ready(result) => {
                 trace!(result= ?result);
-                if let Ok(bytes) = result {
-                    Poll::Ready(Ok(if bytes == 0 {
-                        0
-                    } else {
-                        let plaintext_len = bytes - ABYTES;
-                        let (plaintext, _tag) = self
-                            .stream
-                            .pull(&ciphertext[0..bytes], None)
-                            .expect(&format!("stream decrypt for {} bytes failed", bytes));
-                        buf[0..plaintext_len].clone_from_slice(&plaintext[0..(plaintext_len)]);
-                        plaintext_len
-                    }))
-                } else {
-                    Poll::Ready(result)
+                match result {
+                    Ok(bytes) => {
+                        if bytes == 0 {
+                            Poll::Ready(Ok(bytes))
+                        } else {
+                            let plaintext_len = bytes - ABYTES;
+                            match self.stream.pull(&ciphertext[0..bytes], None) {
+                                Ok((plaintext, _tag)) => {
+                                    buf[0..plaintext_len]
+                                        .clone_from_slice(&plaintext[0..(plaintext_len)]);
+                                    Poll::Ready(Ok(plaintext_len))
+                                }
+                                Err(_e) => {
+                                    warn!("stream decrypt for {} bytes failed", bytes);
+                                    Poll::Pending
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!(?e, "decrypting reader failure");
+                        Poll::Ready(Err(e))
+                    }
                 }
             }
             Poll::Pending => Poll::Pending,
