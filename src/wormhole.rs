@@ -11,9 +11,12 @@ use tracing::{error, info, info_span};
 use tracing_futures::Instrument;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use wormhole::session::run_session;
+use wormhole::transport::sodium_secretstream;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    sodiumoxide::init().map_err(|_| sodium_secretstream::Error::LibInit)?;
+
     #[derive(Debug, StructOpt)]
     #[structopt(name = "wormhole", about = "Secure TCP tunnel.")]
     struct Opt {

@@ -8,6 +8,7 @@ use tracing::trace;
 
 #[derive(Debug)]
 pub enum Error {
+    LibInit,
     KeyInit,
     HeaderInit,
     EncryptionStreamInit,
@@ -19,6 +20,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::LibInit => write!(f, "failed to initialize Sodiumoxide crypto library"),
             Error::KeyInit => write!(f, "failed to initialize secret key from byte slice"),
             Error::HeaderInit => write!(f, "failed to initialize stream header from byte slice"),
             Error::EncryptionStreamInit => write!(f, "failed to initialize encryption stream"),
