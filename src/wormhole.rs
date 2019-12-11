@@ -57,10 +57,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Ok((client, _)) => {
                 match TcpStream::connect(opt.server.clone()).await {
                     Ok(server) => {
-                        let client_addr = client.peer_addr();
-                        let server_addr = server.peer_addr();
+                        let from = format!("{}<->{}", client.peer_addr()?, client.local_addr()?);
+                        let to = format!("{}<->{}", server.local_addr()?, server.peer_addr()?);
                         let session = run_session(key.clone(), opt.server_proxy, client, server)
-                            .instrument(info_span!("session", ?client_addr, ?server_addr))
+                            .instrument(info_span!("session", ?from, ?to))
                             .map(|r| {
                                 if let Err(e) = r {
                                     error!(?e, "session failure");
