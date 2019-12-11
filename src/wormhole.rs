@@ -47,12 +47,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let key: Vec<u8> = serde_yaml::from_str(&key_yaml)?;
     let mut incoming = TcpListener::bind(opt.client.clone()).await?;
 
-    let server_span = info_span!(
-        "wormhole", mode = if opt.server_proxy { "server proxy" } else { "client proxy" },
-        listen_addr = %opt.client, server_addr = %opt.server);
-    let _span = server_span.enter();
-
-    info!("accepting connections");
+    info!(mode = if opt.server_proxy { "server proxy" } else { "client proxy" },
+        listen_addr = %opt.client, server_addr = %opt.server, "accepting connections");
     loop {
         match incoming.accept().await {
             Ok((client, _)) => {

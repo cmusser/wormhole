@@ -64,19 +64,30 @@ impl<'a> AsyncRead for EncryptingReader<'a> {
         match result {
             Poll::Ready(result) => {
                 trace!(result= ?result);
-                if let Ok(bytes) = result {
-                    Poll::Ready(Ok(if bytes == 0 {
-                        0
-                    } else {
-                        let ciphertext = self
-                            .stream
-                            .push(&plaintext[0..bytes], None, Tag::Message)
-                            .unwrap();
-                        buf[0..ciphertext.len()].clone_from_slice(&ciphertext[..]);
-                        ABYTES + bytes
-                    }))
-                } else {
-                    Poll::Ready(result)
+                match result {
+                    Ok(bytes) => {
+                        if bytes == 0 {
+                            Poll::Ready(Ok(bytes))
+                        } else {
+                            match self.stream.push(&plaintext[0..bytes], None, Tag::Message) {
+                                Ok(ciphertext) => {
+                                    buf[0..ciphertext.len()].clone_from_slice(&ciphertext[..]);
+                                    Poll::Ready(Ok(ABYTES + bytes))
+                                }
+                                Err(_e) => {
+                                    warn!("stream encrypt for {} bytes failed", bytes);
+                                    Poll::Ready(Err(tokio::io::Error::new(
+                                        tokio::io::ErrorKind::InvalidInput,
+                                        Error::DecryptionStreamInit,
+                                    )))
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!(?e, "encrypting reader failure");
+                        Poll::Ready(Err(e))
+                    }
                 }
             }
             Poll::Pending => Poll::Pending,
