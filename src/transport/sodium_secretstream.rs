@@ -67,28 +67,26 @@ impl<'a> AsyncRead for EncryptingReader<'a> {
         let mut plaintext: [u8; 2048 - ABYTES] = [0; 2048 - ABYTES];
         let result = Pin::new(&mut self.reader).poll_read(cx, &mut plaintext);
         match result {
-            Poll::Ready(result) => {
-                trace!(result= ?result);
-                match result {
-                    Ok(bytes) => {
-                        if bytes == 0 {
-                            Poll::Ready(Ok(bytes))
-                        } else {
-                            match self.stream.push(&plaintext[0..bytes], None, Tag::Message) {
-                                Ok(ciphertext) => {
-                                    buf[0..ciphertext.len()].clone_from_slice(&ciphertext[..]);
-                                    Poll::Ready(Ok(ABYTES + bytes))
-                                }
-                                Err(_e) => Poll::Ready(Err(tokio::io::Error::new(
-                                    tokio::io::ErrorKind::InvalidInput,
-                                    Error::EncryptMsg,
-                                ))),
+            Poll::Ready(result) => match result {
+                Ok(bytes) => {
+                    if bytes == 0 {
+                        Poll::Ready(Ok(bytes))
+                    } else {
+                        trace!(bytes, "encrypting");
+                        match self.stream.push(&plaintext[0..bytes], None, Tag::Message) {
+                            Ok(ciphertext) => {
+                                buf[0..ciphertext.len()].clone_from_slice(&ciphertext[..]);
+                                Poll::Ready(Ok(ABYTES + bytes))
                             }
+                            Err(_e) => Poll::Ready(Err(tokio::io::Error::new(
+                                tokio::io::ErrorKind::InvalidInput,
+                                Error::EncryptMsg,
+                            ))),
                         }
                     }
-                    Err(e) => Poll::Ready(Err(e)),
                 }
-            }
+                Err(e) => Poll::Ready(Err(e)),
+            },
             Poll::Pending => Poll::Pending,
         }
     }
@@ -131,34 +129,29 @@ impl<'a> AsyncRead for DecryptingReader<'a> {
         let mut ciphertext: [u8; 2048] = [0; 2048];
         let result = Pin::new(&mut self.reader).poll_read(cx, &mut ciphertext);
         match result {
-            Poll::Ready(result) => {
-                trace!(result= ?result);
-                match result {
-                    Ok(bytes) => {
-                        if bytes == 0 {
-                            Poll::Ready(Ok(bytes))
-                        } else {
-                            self.msg_count.fetch_add(1, Ordering::Relaxed);
-                            let plaintext_len = bytes - ABYTES;
-                            match self.stream.pull(&ciphertext[0..bytes], None) {
-                                Ok((plaintext, _tag)) => {
-                                    buf[0..plaintext_len]
-                                        .clone_from_slice(&plaintext[0..(plaintext_len)]);
-                                    Poll::Ready(Ok(plaintext_len))
-                                }
-                                Err(_e) => Poll::Ready(Err(tokio::io::Error::new(
-                                    tokio::io::ErrorKind::InvalidInput,
-                                    Error::DecryptMsg(
-                                        self.msg_count.load(Ordering::Relaxed),
-                                        bytes,
-                                    ),
-                                ))),
+            Poll::Ready(result) => match result {
+                Ok(bytes) => {
+                    if bytes == 0 {
+                        Poll::Ready(Ok(bytes))
+                    } else {
+                        trace!(bytes, "decrypting");
+                        self.msg_count.fetch_add(1, Ordering::Relaxed);
+                        let plaintext_len = bytes - ABYTES;
+                        match self.stream.pull(&ciphertext[0..bytes], None) {
+                            Ok((plaintext, _tag)) => {
+                                buf[0..plaintext_len]
+                                    .clone_from_slice(&plaintext[0..(plaintext_len)]);
+                                Poll::Ready(Ok(plaintext_len))
                             }
+                            Err(_e) => Poll::Ready(Err(tokio::io::Error::new(
+                                tokio::io::ErrorKind::InvalidInput,
+                                Error::DecryptMsg(self.msg_count.load(Ordering::Relaxed), bytes),
+                            ))),
                         }
                     }
-                    Err(e) => Poll::Ready(Err(e)),
                 }
-            }
+                Err(e) => Poll::Ready(Err(e)),
+            },
             Poll::Pending => Poll::Pending,
         }
     }
