@@ -1,8 +1,33 @@
 use core::pin::Pin;
 use futures::task::{Context, Poll};
 use sodiumoxide::crypto::secretstream::{Header, Key, Pull, Push, Stream, Tag, ABYTES};
+use std::fmt;
 use tokio::{io::AsyncRead, net::tcp::ReadHalf};
 use tracing::{trace, warn};
+
+#[derive(Debug)]
+pub enum Error {
+    KeyInit,
+    HeaderInit,
+    EncryptionStreamInit,
+    DecryptionStreamInit,
+    EncryptMsg,
+    DecryptMsg,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::KeyInit => write!(f, "failed to initialize secret key from byte slice"),
+            Error::HeaderInit => write!(f, "failed to initialize stream header from byte slice"),
+            Error::EncryptionStreamInit => write!(f, "failed to initialize encryption stream"),
+            Error::DecryptionStreamInit => write!(f, "failed to initialize decryption stream"),
+            Error::EncryptMsg => write!(f, "encryption failed for message"),
+            Error::DecryptMsg => write!(f, "decryption failed for message"),
+        }
+    }
+}
+impl std::error::Error for Error {}
 
 pub struct EncryptingReader<'a> {
     pub header: Header,
@@ -11,13 +36,15 @@ pub struct EncryptingReader<'a> {
 }
 
 impl<'a> EncryptingReader<'a> {
-    pub fn new(key_data: &[u8], reader: &'a mut ReadHalf<'a>) -> Self {
-        let key = Key::from_slice(key_data).unwrap();
-        let (stream, header) = Stream::init_push(&key).unwrap();
-        Self {
-            header,
-            stream,
-            reader,
+    pub fn new(key_data: &[u8], reader: &'a mut ReadHalf<'a>) -> Result<Self, Error> {
+        let key = Key::from_slice(key_data).ok_or(Error::KeyInit)?;
+        match Stream::init_push(&key) {
+            Ok((stream, header)) => Ok(Self {
+                header,
+                stream,
+                reader,
+            }),
+            Err(_) => Err(Error::EncryptionStreamInit),
         }
     }
 
@@ -63,11 +90,17 @@ pub struct DecryptingReader<'a> {
 }
 
 impl<'a> DecryptingReader<'a> {
-    pub fn new(header_bytes: &[u8], key_data: &[u8], reader: &'a mut ReadHalf<'a>) -> Self {
-        let key = Key::from_slice(key_data).unwrap();
-        let header = Header::from_slice(header_bytes).unwrap();
-        let stream = Stream::init_pull(&header, &key).unwrap();
-        Self { stream, reader }
+    pub fn new(
+        header_bytes: &[u8],
+        key_data: &[u8],
+        reader: &'a mut ReadHalf<'a>,
+    ) -> Result<Self, Error> {
+        let key = Key::from_slice(key_data).ok_or(Error::KeyInit)?;
+        let header = Header::from_slice(header_bytes).ok_or(Error::HeaderInit)?;
+        match Stream::init_pull(&header, &key) {
+            Ok(stream) => Ok(Self { stream, reader }),
+            Err(_) => Err(Error::DecryptionStreamInit),
+        }
     }
 }
 

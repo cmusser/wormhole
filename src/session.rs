@@ -26,7 +26,7 @@ pub async fn run_session(
     is_server_proxy: bool,
     mut client: TcpStream,
     mut server: TcpStream,
-) -> Result<(), Box<tokio::io::Error>> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let (mut client_reader, client_writer) = client.split();
     let (mut server_reader, server_writer) = server.split();
     let mut server_writer = ClonedWriter(Arc::new(Mutex::new(server_writer)));
@@ -39,7 +39,7 @@ pub async fn run_session(
     if is_server_proxy {
         // Set up reader that will encrypt server packets; send the encryption
         // header to the peer proxy so it can decrypt them.
-        let mut encrypt_from_server = EncryptingReader::new(&key_data, &mut server_reader);
+        let mut encrypt_from_server = EncryptingReader::new(&key_data, &mut server_reader)?;
         client_writer
             .write_all(encrypt_from_server.header_bytes())
             .await?;
@@ -49,7 +49,7 @@ pub async fn run_session(
         client_reader.read_exact(&mut remote_header).await?;
         info!("received header from client proxy");
         let mut decrypt_from_client =
-            DecryptingReader::new(&remote_header, &key_data, &mut client_reader);
+            DecryptingReader::new(&remote_header, &key_data, &mut client_reader)?;
 
         // Decrypt client packets and forward to server; encrypt server packets
         // and forward to client. When one of the connections is closed by the peer,
@@ -72,7 +72,7 @@ pub async fn run_session(
     } else {
         // Set up reader that will encrypt client packets and send the
         // encryption header to the peer proxy so it can decrypt them.
-        let mut encrypt_from_client = EncryptingReader::new(&key_data, &mut client_reader);
+        let mut encrypt_from_client = EncryptingReader::new(&key_data, &mut client_reader)?;
         server_writer
             .write_all(encrypt_from_client.header_bytes())
             .await?;
@@ -82,7 +82,7 @@ pub async fn run_session(
         server_reader.read_exact(&mut remote_header).await?;
         info!("received header from server proxy");
         let mut decrypt_from_server =
-            DecryptingReader::new(&remote_header, &key_data, &mut server_reader);
+            DecryptingReader::new(&remote_header, &key_data, &mut server_reader)?;
 
         // Decrypt server packets and forward to client; encrypt client packets
         // and forward to server. As above, when one of the connections is closed
