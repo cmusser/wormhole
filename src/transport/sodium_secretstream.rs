@@ -129,7 +129,10 @@ impl<'a> AsyncRead for DecryptingReader<'a> {
                                 }
                                 Err(_e) => {
                                     warn!("stream decrypt for {} bytes failed", bytes);
-                                    Poll::Pending
+                                    Poll::Ready(Err(tokio::io::Error::new(
+                                        tokio::io::ErrorKind::InvalidInput,
+                                        Error::DecryptionStreamInit,
+                                    )))
                                 }
                             }
                         }
