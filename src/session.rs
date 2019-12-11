@@ -12,11 +12,11 @@ use tokio::{
     io::{copy, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{tcp::WriteHalf, TcpStream},
 };
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 fn reader_finish(closed_by: &str, result: Result<u64, std::io::Error>) {
     match result {
-        Ok(bytes_read) => info!(closed_by, bytes_read),
+        Ok(bytes_read) => debug!(closed_by, bytes_read),
         Err(e) => error!(%e),
     }
 }
@@ -47,7 +47,6 @@ pub async fn run_session(
         // Read the encryption header from the peer proxy and use it to set up
         // the reader that will decrypt packets from the client.
         client_reader.read_exact(&mut remote_header).await?;
-        info!("received header from client proxy");
         let mut decrypt_from_client =
             DecryptingReader::new(&remote_header, &key_data, &mut client_reader)?;
 
@@ -80,7 +79,6 @@ pub async fn run_session(
         // Read the encryption header from the peer proxy and use it to set up
         // the reader that will decrypt packets from the server.
         server_reader.read_exact(&mut remote_header).await?;
-        info!("received header from server proxy");
         let mut decrypt_from_server =
             DecryptingReader::new(&remote_header, &key_data, &mut server_reader)?;
 

@@ -2,8 +2,9 @@ use core::pin::Pin;
 use futures::task::{Context, Poll};
 use sodiumoxide::crypto::secretstream::{Header, Key, Pull, Push, Stream, Tag, ABYTES};
 use std::fmt;
+use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::{io::AsyncRead, net::tcp::ReadHalf};
-use tracing::{trace, warn};
+use tracing::trace;
 
 #[derive(Debug)]
 pub enum Error {
@@ -12,7 +13,7 @@ pub enum Error {
     EncryptionStreamInit,
     DecryptionStreamInit,
     EncryptMsg,
-    DecryptMsg,
+    DecryptMsg(u32, usize),
 }
 
 impl fmt::Display for Error {
@@ -23,7 +24,9 @@ impl fmt::Display for Error {
             Error::EncryptionStreamInit => write!(f, "failed to initialize encryption stream"),
             Error::DecryptionStreamInit => write!(f, "failed to initialize decryption stream"),
             Error::EncryptMsg => write!(f, "encryption failed for message"),
-            Error::DecryptMsg => write!(f, "decryption failed for message"),
+            Error::DecryptMsg(seq, len) => {
+                write!(f, "decryption failed for message {} (size {})", seq, len)
+            }
         }
     }
 }
@@ -74,20 +77,14 @@ impl<'a> AsyncRead for EncryptingReader<'a> {
                                     buf[0..ciphertext.len()].clone_from_slice(&ciphertext[..]);
                                     Poll::Ready(Ok(ABYTES + bytes))
                                 }
-                                Err(_e) => {
-                                    warn!(bytes, "stream encrypt failed");
-                                    Poll::Ready(Err(tokio::io::Error::new(
-                                        tokio::io::ErrorKind::InvalidInput,
-                                        Error::EncryptMsg,
-                                    )))
-                                }
+                                Err(_e) => Poll::Ready(Err(tokio::io::Error::new(
+                                    tokio::io::ErrorKind::InvalidInput,
+                                    Error::EncryptMsg,
+                                ))),
                             }
                         }
                     }
-                    Err(e) => {
-                        warn!(?e, "encrypting reader I/O failure");
-                        Poll::Ready(Err(e))
-                    }
+                    Err(e) => Poll::Ready(Err(e)),
                 }
             }
             Poll::Pending => Poll::Pending,
@@ -98,6 +95,7 @@ impl<'a> AsyncRead for EncryptingReader<'a> {
 pub struct DecryptingReader<'a> {
     stream: Stream<Pull>,
     reader: &'a mut ReadHalf<'a>,
+    msg_count: AtomicU32,
 }
 
 impl<'a> DecryptingReader<'a> {
@@ -111,7 +109,11 @@ impl<'a> DecryptingReader<'a> {
         match Stream::init_pull(&header, &key) {
             Ok(stream) => {
                 trace!("decryption stream initialized");
-                Ok(Self { stream, reader })
+                Ok(Self {
+                    stream,
+                    reader,
+                    msg_count: AtomicU32::new(0),
+                })
             }
             Err(_) => Err(Error::DecryptionStreamInit),
         }
@@ -134,6 +136,7 @@ impl<'a> AsyncRead for DecryptingReader<'a> {
                         if bytes == 0 {
                             Poll::Ready(Ok(bytes))
                         } else {
+                            self.msg_count.fetch_add(1, Ordering::Relaxed);
                             let plaintext_len = bytes - ABYTES;
                             match self.stream.pull(&ciphertext[0..bytes], None) {
                                 Ok((plaintext, _tag)) => {
@@ -141,20 +144,17 @@ impl<'a> AsyncRead for DecryptingReader<'a> {
                                         .clone_from_slice(&plaintext[0..(plaintext_len)]);
                                     Poll::Ready(Ok(plaintext_len))
                                 }
-                                Err(_e) => {
-                                    warn!(bytes, "stream decrypt failed");
-                                    Poll::Ready(Err(tokio::io::Error::new(
-                                        tokio::io::ErrorKind::InvalidInput,
-                                        Error::DecryptMsg,
-                                    )))
-                                }
+                                Err(_e) => Poll::Ready(Err(tokio::io::Error::new(
+                                    tokio::io::ErrorKind::InvalidInput,
+                                    Error::DecryptMsg(
+                                        self.msg_count.load(Ordering::Relaxed),
+                                        bytes,
+                                    ),
+                                ))),
                             }
                         }
                     }
-                    Err(e) => {
-                        warn!(?e, "decrypting reader I/O failure");
-                        Poll::Ready(Err(e))
-                    }
+                    Err(e) => Poll::Ready(Err(e)),
                 }
             }
             Poll::Pending => Poll::Pending,
