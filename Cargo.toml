@@ -1,18 +1,19 @@
 [package]
 name = "wormhole"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Chuck Musser <cmusser@sonic.net>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bytes = "0.5"
 futures = { version = "0.3.1", features = ["async-await"] }
 futures-util = "0.3.1"
 serde_yaml = "0.8.11"
 sodiumoxide = "0.2.5"
 structopt = "0.3.3"
-tokio = { version = "0.2.1", features = ["dns", "io-util", "macros", "tcp"] }
+tokio = { version = "0.2.4", features = ["dns", "io-util", "macros", "tcp"] }
 tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = "0.1.5"
