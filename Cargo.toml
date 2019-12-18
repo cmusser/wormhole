@@ -1,6 +1,6 @@
 [package]
 name = "wormhole"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Chuck Musser <cmusser@sonic.net>"]
 edition = "2018"
 

@@ -131,15 +131,17 @@ in the clear. This could be used to make inferences about the nature of
 the traffic. Malicious actors could also alter the traffic in transit,
 altering the size values to cause decryption to fail or the process to
 mismanage its buffers (although a Rust program is likely to simply crash,
-rather than experience a buffer overflow.)
+rather than fall victim to a buffer overflow.)
 
 ## Acknowledgements
 
 `wormhole` was initially based on examples in the
-[Tokio](https://github.com/tokio-rs/tokio) repository's 0.2 alpha
-branch, although its structure was eventually redesigned. A technique
-for ensuring proper session cleanup was found in the earlier 0.1
-branch examples. Initially it worked by providing a custom `AsyncRead`
-implementation. This was found to be flawed, but valuable experience was
-gained by building it and I got valuable advice from `Nemo157` and `sfackler`
-on the Rust [users discussion site](https://users.rust-lang.org).
+[Tokio](https://github.com/tokio-rs/tokio) repository's 0.2
+alpha branch, although its structure was eventually redesigned. A
+technique for ensuring proper session cleanup was found in the
+earlier 0.1 branch examples. Initially it worked by providing a
+custom `AsyncRead` implementation. This was found to be flawed,
+but valuable experience was gained by building it and I got helpful
+advice from `Nemo157` and `sfackler` on the Rust [users discussion
+site](https://users.rust-lang.org). Frank Denis (libsodium's maintainer)
+suggested techniques for properly handling an encrypted stream.

@@ -56,8 +56,12 @@ pub async fn encrypting_reader<'a>(
             break;
         } else {
             buf[plaintext_len] = 0x80;
-            for i in (plaintext_len + 1)..MAX_PLAINTEXT_SZ {
-                buf[i] = 0;
+            for byte in buf // Clippy recommends all this
+                .iter_mut() // instead of a for loop.
+                .take(MAX_PLAINTEXT_SZ)
+                .skip(plaintext_len + 1)
+            {
+                *byte = 0;
             }
             let ciphertext = stream
                 .push(&buf[0..MAX_PLAINTEXT_SZ], None, Tag::Message)
@@ -89,23 +93,21 @@ pub async fn decrypting_reader<'a>(
         trace!(ciphertext_len);
         if ciphertext_len == 0 {
             break;
-        } else {
-            if buf.len() == IO_BUF_SZ {
-                let (plaintext, _tag) = stream
-                    .pull(&buf[0..IO_BUF_SZ], None)
-                    .map_err(|_| Error::DecryptMsg(0, ciphertext_len))?;
-                let mut end = MAX_PLAINTEXT_SZ - 1;
-                trace!(end, plaintext_len = plaintext.len());
-                while end >= 1 {
-                    if plaintext[end] == 0 {
-                        end -= 1;
-                    }
-                    if plaintext[end] == 0x80 {
-                        trace!(plaintext_len = plaintext[..end].len());
-                        writer.write(&plaintext[..end]).await?;
-                        buf.clear();
-                        break;
-                    }
+        } else if buf.len() == IO_BUF_SZ {
+            let (plaintext, _tag) = stream
+                .pull(&buf[0..IO_BUF_SZ], None)
+                .map_err(|_| Error::DecryptMsg(0, ciphertext_len))?;
+            let mut end = MAX_PLAINTEXT_SZ - 1;
+            trace!(end, plaintext_len = plaintext.len());
+            while end >= 1 {
+                if plaintext[end] == 0 {
+                    end -= 1;
+                }
+                if plaintext[end] == 0x80 {
+                    trace!(plaintext_len = plaintext[..end].len());
+                    writer.write(&plaintext[..end]).await?;
+                    buf.clear();
+                    break;
                 }
             }
         }
