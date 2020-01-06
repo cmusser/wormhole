@@ -10,11 +10,12 @@ use tokio::{
     io::{AsyncWrite, AsyncWriteExt},
     net::{tcp::WriteHalf, TcpStream},
 };
-use tracing::{debug, error, info};
+use tracing::{error, info, info_span};
+use tracing_futures::Instrument;
 
-fn reader_finish(closed_by: &str, result: Result<(), Box<dyn std::error::Error>>) {
+fn reader_finish(closed_by: &str, result: Result<(usize, usize), Box<dyn std::error::Error>>) {
     match result {
-        Ok(_) => debug!(closed_by),
+        Ok((packets, bytes_transferred)) => info!(closed_by, packets, bytes_transferred, "done"),
         Err(e) => error!(%e),
     }
 }
@@ -35,18 +36,20 @@ pub async fn run_session(
     info!("started");
     if is_server_proxy {
         let encrypt_from_server =
-            encrypting_reader(&key_data, &mut server_reader, &mut client_writer);
+            encrypting_reader(&key_data, &mut server_reader, &mut client_writer)
+                .instrument(info_span!("encrypting_reader"));
 
         let decrypt_from_client =
-            decrypting_reader(&key_data, &mut client_reader, &mut server_writer);
+            decrypting_reader(&key_data, &mut client_reader, &mut server_writer)
+                .instrument(info_span!("decrypting_reader"));
 
         select(decrypt_from_client.boxed(), encrypt_from_server.boxed())
             .then(|either| match either {
-                Either::Left((client_read_result, _server_to_client)) => {
+                Either::Left((client_read_result, _encrypt_from_server)) => {
                     reader_finish("client proxy", client_read_result);
                     server_writer_to_close.shutdown()
                 }
-                Either::Right((server_read_result, _client_to_server)) => {
+                Either::Right((server_read_result, _decrypt_from_client)) => {
                     reader_finish("server", server_read_result);
                     client_writer_to_close.shutdown()
                 }
@@ -54,25 +57,26 @@ pub async fn run_session(
             .await?;
     } else {
         let encrypt_from_client =
-            encrypting_reader(&key_data, &mut client_reader, &mut server_writer);
+            encrypting_reader(&key_data, &mut client_reader, &mut server_writer)
+                .instrument(info_span!("encrypting_reader"));
 
         let decrypt_from_server =
-            decrypting_reader(&key_data, &mut server_reader, &mut client_writer);
+            decrypting_reader(&key_data, &mut server_reader, &mut client_writer)
+                .instrument(info_span!("decrypting_reader"));
 
         select(encrypt_from_client.boxed(), decrypt_from_server.boxed())
             .then(|either| match either {
-                Either::Left((client_read_result, _server_to_client)) => {
+                Either::Left((client_read_result, _decrypt_from_server)) => {
                     reader_finish("client", client_read_result);
                     server_writer_to_close.shutdown()
                 }
-                Either::Right((server_read_result, _client_to_server)) => {
+                Either::Right((server_read_result, _encrypt_from_client)) => {
                     reader_finish("server proxy", server_read_result);
                     client_writer_to_close.shutdown()
                 }
             })
             .await?;
     }
-    info!("done");
     Ok(())
 }
 
