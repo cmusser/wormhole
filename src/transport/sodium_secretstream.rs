@@ -1,13 +1,12 @@
 use crate::session::ClonedWriter;
 use bytes::BytesMut;
-use sha2::{Digest, Sha256};
 use sodiumoxide::crypto::secretstream::{Header, Key, Stream, Tag, ABYTES, HEADERBYTES};
 use std::fmt;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::tcp::ReadHalf,
 };
-use tracing::trace;
+use tracing::{error, trace};
 
 #[derive(Debug)]
 pub enum Error {
@@ -17,7 +16,7 @@ pub enum Error {
     EncryptionStreamInit,
     DecryptionStreamInit,
     EncryptMsg,
-    DecryptMsg(usize, usize, usize, String),
+    DecryptMsg(usize, usize, usize),
 }
 
 impl fmt::Display for Error {
@@ -29,17 +28,17 @@ impl fmt::Display for Error {
             Error::EncryptionStreamInit => write!(f, "failed to initialize encryption stream"),
             Error::DecryptionStreamInit => write!(f, "failed to initialize decryption stream"),
             Error::EncryptMsg => write!(f, "encryption failed for message"),
-            Error::DecryptMsg(seq, len, bytes_transferred, hash_str) => write!(
+            Error::DecryptMsg(seq, len, bytes_transferred) => write!(
                 f,
-                "decryption failed for message {} (size {}, hash {}), successful_bytes {}",
-                seq, len, hash_str, bytes_transferred
+                "decryption failed for message {} (size {}), successful_bytes {}",
+                seq, len, bytes_transferred
             ),
         }
     }
 }
 impl std::error::Error for Error {}
 
-const PLAINTEXT_BUF_SZ: usize = 512;
+const PLAINTEXT_BUF_SZ: usize = 256;
 // The plaintext buffer must have at least one byte that serves as a
 // boundary from the actual plaintext and any padding needed for the buffer.
 const MAX_PLAINTEXT_SZ: usize = PLAINTEXT_BUF_SZ - 1;
@@ -54,7 +53,7 @@ pub async fn encrypting_reader<'a>(
     let (mut stream, header) = Stream::init_push(&key).map_err(|_| Error::EncryptionStreamInit)?;
     writer.write_all(&header[..]).await?;
 
-    let mut packets_sent: usize = 0;
+    let mut message: usize = 0;
     let mut bytes_transferred: usize = 0;
     let mut buf: [u8; PLAINTEXT_BUF_SZ] = [0; PLAINTEXT_BUF_SZ];
     loop {
@@ -74,22 +73,18 @@ pub async fn encrypting_reader<'a>(
             let ciphertext = stream
                 .push(&buf[0..PLAINTEXT_BUF_SZ], None, Tag::Message)
                 .map_err(|_| Error::EncryptMsg)?;
-            writer.write(&ciphertext[..]).await?;
+            writer.write_all(&ciphertext[..]).await?;
             bytes_transferred += plaintext_len;
-            packets_sent += 1;
-            let mut hasher = Sha256::new();
-            hasher.input(&ciphertext);
-            let hash = hasher.result();
+            message += 1;
             trace!(
-                packets_sent,
+                message,
                 plaintext_len,
                 padded_plaintext_len = buf[..].len(),
                 ciphertext_len = ciphertext[..].len(),
-                ?hash
             );
         }
     }
-    Ok((packets_sent, bytes_transferred))
+    Ok((message, bytes_transferred))
 }
 
 pub async fn decrypting_reader<'a>(
@@ -103,7 +98,7 @@ pub async fn decrypting_reader<'a>(
     let header = Header::from_slice(&header_bytes).ok_or(Error::HeaderInit)?;
     let mut stream = Stream::init_pull(&header, &key).map_err(|_| Error::DecryptionStreamInit)?;
 
-    let mut packets_recv: usize = 0;
+    let mut message: usize = 0;
     let mut bytes_transferred: usize = 0;
     let mut buf = BytesMut::with_capacity(IO_BUF_SZ);
     loop {
@@ -112,40 +107,36 @@ pub async fn decrypting_reader<'a>(
             trace!("EOF");
             break;
         } else if buf.len() == IO_BUF_SZ {
-            packets_recv += 1;
-            let mut hasher = Sha256::new();
-            hasher.input(&buf[0..IO_BUF_SZ]);
-            let hash = hasher.result();
-            let (padded_plaintext, _tag) = stream.pull(&buf[0..IO_BUF_SZ], None).map_err(|_| {
-                Error::DecryptMsg(
-                    packets_recv,
-                    buf.len(),
-                    bytes_transferred,
-                    format!("{:?}", hash),
-                )
-            })?;
+            message += 1;
+            let (padded_plaintext, _tag) = stream
+                .pull(&buf, None)
+                .map_err(|_| Error::DecryptMsg(message, buf.len(), bytes_transferred))?;
             let mut end = MAX_PLAINTEXT_SZ;
+            let mut boundary_found = false;
             while end >= 1 {
                 if padded_plaintext[end] == 0 {
                     end -= 1;
                 }
                 if padded_plaintext[end] == 0x80 {
+                    boundary_found = true;
                     let plaintext_len = padded_plaintext[..end].len();
                     bytes_transferred += plaintext_len;
                     trace!(
-                        packets_recv,
+                        message,
                         ciphertext_len,
                         end,
                         padded_plaintext_len = padded_plaintext.len(),
                         plaintext_len,
-                        ?hash
                     );
-                    writer.write(&padded_plaintext[..end]).await?;
-                    buf.clear();
+                    writer.write_all(&padded_plaintext[..end]).await?;
                     break;
                 }
             }
+            if boundary_found == false {
+                error!("no 0x80 boundary found in plaintext");
+            }
+            buf.clear();
         }
     }
-    Ok((packets_recv, bytes_transferred))
+    Ok((message, bytes_transferred))
 }

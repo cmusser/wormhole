@@ -15,7 +15,7 @@ use tracing_futures::Instrument;
 
 fn reader_finish(closed_by: &str, result: Result<(usize, usize), Box<dyn std::error::Error>>) {
     match result {
-        Ok((packets, bytes_transferred)) => info!(closed_by, packets, bytes_transferred, "done"),
+        Ok((messages, bytes_transferred)) => info!(closed_by, messages, bytes_transferred, "done"),
         Err(e) => error!(%e),
     }
 }
