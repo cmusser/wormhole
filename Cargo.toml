@@ -1,6 +1,6 @@
 [package]
 name = "wormhole"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Chuck Musser <cmusser@sonic.net>"]
 edition = "2018"
 
@@ -12,7 +12,7 @@ futures = { version = "0.3.1", features = ["async-await"] }
 futures-util = "0.3.1"
 serde_yaml = "0.8.11"
 sodiumoxide = "0.2.5"
-structopt = "0.3.3"
+structopt = "0.3"
 tokio = { version = "0.2.9", features = ["dns", "io-util", "macros", "tcp"] }
 tracing = "0.1"
 tracing-futures = "0.2"

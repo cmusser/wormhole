@@ -5,6 +5,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::PathBuf;
+use structopt::clap::crate_version;
 use structopt::StructOpt;
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{error, info, info_span};
@@ -50,7 +51,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let key: Vec<u8> = serde_yaml::from_str(&key_yaml)?;
     let mut incoming = TcpListener::bind(opt.client.clone()).await?;
 
-    info!(mode = if opt.server_proxy { "server proxy" } else { "client proxy" },
+    info!(version = crate_version!(), mode = if opt.server_proxy { "server proxy" } else { "client proxy" },
         listen_addr = %opt.client, server_addr = %opt.server, "accepting connections");
     loop {
         match incoming.accept().await {
