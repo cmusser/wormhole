@@ -132,7 +132,7 @@ pub async fn decrypting_reader<'a>(
                     break;
                 }
             }
-            if boundary_found == false {
+            if !boundary_found {
                 error!("no 0x80 boundary found in plaintext");
             }
             buf.clear();
