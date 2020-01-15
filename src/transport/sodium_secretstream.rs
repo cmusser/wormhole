@@ -73,14 +73,14 @@ pub async fn encrypting_reader<'a>(
             let ciphertext = stream
                 .push(&buf[0..PLAINTEXT_BUF_SZ], None, Tag::Message)
                 .map_err(|_| Error::EncryptMsg)?;
-            writer.write_all(&ciphertext[..]).await?;
+            writer.write_all(&ciphertext).await?;
             bytes_transferred += plaintext_len;
             message += 1;
             trace!(
                 message,
                 plaintext_len,
-                padded_plaintext_len = buf[..].len(),
-                ciphertext_len = ciphertext[..].len(),
+                padded_plaintext_len = buf.len(),
+                ciphertext_len = ciphertext.len(),
             );
         }
     }
