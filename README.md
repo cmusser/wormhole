@@ -72,6 +72,32 @@ example features three hosts: a gateway, a host running Redis and a client machi
 
        redis-cli -h gateway
 
+## Docker Container
+
+Use cases similar to the above can also be accomplished with the Docker container,
+which makes it easy to run a proxy or bundle it with an application, i.e. with
+Docker Compose.
+
+The container has built-in commands for running as a client or server gateway,
+generating a key with the `wormhole-keygen` utility and running an arbitrary
+command in the container.
+
+The following table shows the various commands and the configuration environment
+variables available:
+
+|Command|Environment Variables|Notes|
+|client-proxy|LISTEN_ADDR, CONNECT_ADDR, LOG_LEVEL|create a client proxy, which encrypts data received from connections it accepts from clients, and decrypts data received from connections it makes to the server proxy.|
+|server-proxy|LISTEN_ADDR, CONNECT_ADDR, LOG_LEVEL|create a server proxy, which decrypts data received from connections it accepts from client proxies, and encrypts data received froo connections it makes to the server.|
+|keygen|none|Create a secret key named `key.yaml` for use by both peers. This key will be written to the directory mounted into the container.|
+|help|none|Show usage information|
+|anything else|none|Only `wormhole` and `wormhole-keygen` are in the container, but you can run them with all possible arguments|
+
+For the `client-proxy` and `server-proxy`, specify LISTEN_ADDR and CONNECT_ADDR as appropriate for your application. The defaults for these
+are for testing and are unlikely to match what you need. The LOG_LEVEL variable is in `env_logger`/`tracing` syntax.
+
+Also, for `client-proxy`, and `server-proxy`, mount a file inside the container at `/etc/wormhole/key.yaml. For `keygen` mount the
+directory where you want the new key to be generated at `/etc/wormhole`.
+
 ## Implementation Details
 
 `wormhole` is written in Rust. It uses the following features.
