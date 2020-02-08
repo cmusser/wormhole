@@ -23,7 +23,7 @@ disruptions.
 Use `wormhole-keygen` to create a file with a secret key for use by both
 sides of the proxy:
 
-        cargo run --bin wormhole-keygen
+        wormhole-keygen
 
 ### Send lines with `nc(1)`
 
@@ -32,11 +32,11 @@ in a second. This example uses one host (localhost).
 
 1. client proxy
 
-        RUST_LOG="wormhole=trace" cargo run --bin wormhole -- -c 127.0.0.1:8082 -s 127.0.0.1:8081
+        RUST_LOG="wormhole=info" wormhole -c 127.0.0.1:8082 -s 127.0.0.1:8081
 
 2. server gateway
 
-        RUST_LOG="wormhole=trace" cargo run --bin wormhole -- -S
+        RUST_LOG="wormhole=info" wormhole -S -c 127.0.0.1:8081 -s 127.0.0.1:8080
 
 3. server
 
@@ -58,11 +58,11 @@ example features three hosts: a gateway, a host running Redis and a client machi
 
 1. client proxy (on a gateway host)
 
-        RUST_LOG="wormhole=trace" cargo run --bin wormhole -- -c 0.0.0.0:6379 -s redis:26379
+        wormhole -c 0.0.0.0:6379 -s redis:26379
 
 2. server gateway (on the Redis server host)
 
-        RUST_LOG="wormhole=trace" cargo run --bin wormhole -- -S -c 0.0.0.0 26379 -s 127.0.0.1:6379
+        wormhole -S -c 0.0.0.0 26379 -s 127.0.0.1:6379
 
 3. Redis server (on the Redis server host)
 
@@ -86,6 +86,7 @@ The following table shows the various commands and the configuration environment
 variables available:
 
 |Command|Environment Variables|Notes|
+|---|---|---|---|
 |client-proxy|LISTEN_ADDR, CONNECT_ADDR, LOG_LEVEL|create a client proxy, which encrypts data received from connections it accepts from clients, and decrypts data received from connections it makes to the server proxy.|
 |server-proxy|LISTEN_ADDR, CONNECT_ADDR, LOG_LEVEL|create a server proxy, which decrypts data received from connections it accepts from client proxies, and encrypts data received froo connections it makes to the server.|
 |keygen|none|Create a secret key named `key.yaml` for use by both peers. This key will be written to the directory mounted into the container.|
