@@ -82,22 +82,33 @@ The container has built-in commands for running as a client or server gateway,
 generating a key with the `wormhole-keygen` utility and running an arbitrary
 command in the container.
 
+### Container Commands
 The following table shows the various commands and the configuration environment
 variables available:
 
 |Command|Environment Variables|Notes|
-|---|---|---|---|
-|client-proxy|LISTEN_ADDR, CONNECT_ADDR, LOG_LEVEL|create a client proxy, which encrypts data received from connections it accepts from clients, and decrypts data received from connections it makes to the server proxy.|
-|server-proxy|LISTEN_ADDR, CONNECT_ADDR, LOG_LEVEL|create a server proxy, which decrypts data received from connections it accepts from client proxies, and encrypts data received froo connections it makes to the server.|
-|keygen|none|Create a secret key named `key.yaml` for use by both peers. This key will be written to the directory mounted into the container.|
-|help|none|Show usage information|
-|anything else|none|Only `wormhole` and `wormhole-keygen` are in the container, but you can run them with all possible arguments|
+|---|---|---|
+|`client-proxy`|`LISTEN_ADDR`, `CONNECT_ADDR`, `LOG_LEVEL`|create a client proxy, which encrypts data received from connections it accepts from clients, and decrypts data received from connections it makes to the server proxy.|
+|`server-proxy`|`LISTEN_ADDR`, `CONNECT_ADDR`, `LOG_LEVEL`|create a server proxy, which decrypts data received from connections it accepts from client proxies, and encrypts data received froo connections it makes to the server.|
+|`keygen`|none|Create a secret key named `key.yaml` for use by both peers. This key will be written to the directory mounted into the container.|
+|`help`|none|Show usage information|
+|anything else|none|Only `wormhole` and `wormhole-keygen` are in the container, but you can run them with all possible arguments.|
 
-For the `client-proxy` and `server-proxy`, specify LISTEN_ADDR and CONNECT_ADDR as appropriate for your application. The defaults for these
-are for testing and are unlikely to match what you need. The LOG_LEVEL variable is in `env_logger`/`tracing` syntax.
+### Using `client-proxy` and `server-proxy`:
 
-Also, for `client-proxy`, and `server-proxy`, mount a file inside the container at `/etc/wormhole/key.yaml. For `keygen` mount the
-directory where you want the new key to be generated at `/etc/wormhole`.
+1. specify `LISTEN_ADDR` and `CONNECT_ADDR` as appropriate for your application.
+The `wormhole` program provides defaults for these, but they are intended for simple
+tests and are unlikely to match what you need.
+
+2. Mount a file inside the container at `/etc/wormhole/key.yaml`.
+
+3. The `LOG_LEVEL` variable is in `env_logger`/`tracing` syntax.
+
+### Using `keygen`:
+
+1. mount the directory where you want the new key to be generated at `/etc/wormhole`.
+It will appear in the host directory as `key.yaml`.
+
 
 ## Implementation Details
 
