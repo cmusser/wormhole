@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 function check_wormhole_args() {
     if [ -z "${LISTEN_ADDR+x}" ] ; then
@@ -20,7 +20,7 @@ elif [ "$1" = "server-proxy" ] ; then
     RUN_WORMHOLE=true
     SERVER="-S"
 elif [ "$1" = "keygen" ] ; then
-    ./wormhole-keygen
+    wormhole-keygen
 elif [ "$1" = "help" ] ; then
     echo 'specify "wormhole-client", "wormhole-server", "wormhole-keygen" or arbitrary command.'
     echo
@@ -36,9 +36,10 @@ elif [ "$1" = "help" ] ; then
     echo 'vars have defaults, but they will almost always need to be given application'
     echo 'specific values.'
 else
-    exec $@
+    echo command was $1
+    exec "$@"
 fi
 
 if [ ! -z "${RUN_WORMHOLE+x}" ] ; then
-    RUST_LOG=${LOG_LEVEL:-wormhole=warn} ./wormhole ${SERVER} -c ${LISTEN_ADDR} -s ${CONNECT_ADDR} -k /etc/wormhole/key.yaml
+    RUST_LOG=${LOG_LEVEL:-wormhole=warn} wormhole ${SERVER} -c ${LISTEN_ADDR} -s ${CONNECT_ADDR} -k /etc/wormhole/key.yaml
 fi

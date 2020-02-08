@@ -24,9 +24,10 @@ COPY src ./src
 RUN cargo install --path .
 
 # Copy the statically-linked binary into a scratch container.
-FROM scratch
-COPY --from=build /usr/local/cargo/bin/wormhole .
-COPY --from=build /usr/local/cargo/bin/wormhole-keygen .
+FROM debian:buster-slim
+COPY --from=build /usr/local/cargo/bin/wormhole /usr/bin
+COPY --from=build /usr/local/cargo/bin/wormhole-keygen /usr/bin
+COPY entrypoint.sh ./
 USER 1000
 
 ENTRYPOINT ["/entrypoint.sh"]
