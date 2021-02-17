@@ -8,8 +8,7 @@ use std::path::PathBuf;
 use structopt::clap::crate_version;
 use structopt::StructOpt;
 use tokio::net::{TcpListener, TcpStream};
-use tracing::{error, info, info_span};
-use tracing_futures::Instrument;
+use tracing::{error, info, info_span, Instrument};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use wormhole::session::run_session;
 use wormhole::transport::sodium_secretstream;
@@ -49,7 +48,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut key_yaml = String::new();
     key_file.read_to_string(&mut key_yaml)?;
     let key: Vec<u8> = serde_yaml::from_str(&key_yaml)?;
-    let mut incoming = TcpListener::bind(opt.client.clone()).await?;
+    let incoming = TcpListener::bind(opt.client.clone()).await?;
 
     info!(version = crate_version!(), mode = if opt.server_proxy { "server proxy" } else { "client proxy" },
         listen_addr = %opt.client, server_addr = %opt.server, "accepting connections");

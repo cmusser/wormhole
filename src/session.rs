@@ -10,8 +10,7 @@ use tokio::{
     io::{AsyncWrite, AsyncWriteExt},
     net::{tcp::WriteHalf, TcpStream},
 };
-use tracing::{error, info, info_span};
-use tracing_futures::Instrument;
+use tracing::{error, info, info_span, Instrument};
 
 fn reader_finish(closed_by: &str, result: Result<(usize, usize), Box<dyn std::error::Error>>) {
     match result {
