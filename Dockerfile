@@ -1,4 +1,4 @@
-FROM rust:1.41.0 AS build
+FROM rust:1.50.0 AS build
 MAINTAINER Chuck Musser <cmusser@sonic.net>
 
 # Multi-stage Rust build and image creation technique courtesy of:
